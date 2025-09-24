@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Development files
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local data (will be mounted as volumes)
+uploads/*
+config/config.json
+ssl/*
+logs/
+
+# Scripts (not needed in container)
+*.sh
+test_api.py
+
+# Docker files
+docker-compose*.yml
+Dockerfile
