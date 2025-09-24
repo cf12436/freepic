@@ -7,8 +7,8 @@ services:
     ports:
       - "127.0.0.1:5000:5000"
     volumes:
-      - ./uploads:/app/uploads
-      - ./config:/app/config
+      - uploads_data:/app/uploads
+      - config_data:/app/config
       - ./ssl:/app/ssl
       - ./logs:/app/logs
     environment:
@@ -17,6 +17,7 @@ services:
       - CONFIG_PATH=/app/config
       - PORT=5000
     restart: unless-stopped
+    user: "1000:1000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -37,3 +38,9 @@ services:
     depends_on:
       - freepics
     restart: unless-stopped
+
+volumes:
+  uploads_data:
+    driver: local
+  config_data:
+    driver: local

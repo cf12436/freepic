@@ -147,13 +147,33 @@ def upload_file():
         
         # 优化图片（可选）
         optimize = request.form.get('optimize', 'false').lower() == 'true'
-        if optimize and file.content_type.startswith('image/'):
-            file_data = optimize_image(file_data)
+        logger.info(f"上传文件: {file.filename}, 大小: {len(file_data)}, 优化: {optimize}")
+        
+        if optimize and file.content_type and file.content_type.startswith('image/'):
+            try:
+                original_size = len(file_data)
+                file_data = optimize_image(file_data)
+                logger.info(f"图片优化: {original_size} -> {len(file_data)} bytes")
+            except Exception as e:
+                logger.warning(f"图片优化失败，使用原图: {e}")
+                # 继续使用原始图片数据
         
         # 保存文件
         file_path = os.path.join(UPLOAD_FOLDER, filename)
-        with open(file_path, 'wb') as f:
-            f.write(file_data)
+        logger.info(f"保存文件到: {file_path}")
+        
+        try:
+            # 确保上传目录存在
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            
+            with open(file_path, 'wb') as f:
+                f.write(file_data)
+            
+            logger.info(f"文件保存成功: {filename}")
+            
+        except Exception as e:
+            logger.error(f"文件保存失败: {e}", exc_info=True)
+            return jsonify({'error': f'文件保存失败: {str(e)}'}), 500
         
         # 生成访问URL
         base_url = request.url_root.rstrip('/')
@@ -174,8 +194,8 @@ def upload_file():
         }), 200
         
     except Exception as e:
-        logger.error(f"文件上传失败: {e}")
-        return jsonify({'error': '文件上传失败'}), 500
+        logger.error(f"文件上传失败: {e}", exc_info=True)
+        return jsonify({'error': f'文件上传失败: {str(e)}'}), 500
 
 @app.route('/delete/<filename>', methods=['DELETE'])
 def delete_file(filename):

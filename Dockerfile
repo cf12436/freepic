@@ -25,8 +25,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY app.py .
 
-# 创建必要的目录
-RUN mkdir -p /app/uploads /app/config
+# 创建非root用户
+RUN useradd -m -u 1000 appuser
+
+# 创建必要的目录并设置权限
+RUN mkdir -p /app/uploads /app/config && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app && \
+    chmod -R 777 /app/uploads /app/config
 
 # 设置环境变量
 ENV FLASK_APP=app.py
@@ -38,8 +44,7 @@ ENV PORT=5000
 # 暴露端口
 EXPOSE 5000
 
-# 创建非root用户
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# 切换到非root用户
 USER appuser
 
 # 启动命令

@@ -9,17 +9,52 @@ import json
 import os
 import sys
 from pathlib import Path
+import urllib3
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # 配置
-BASE_URL = "http://localhost:5000"  # 本地测试
-# BASE_URL = "https://noimnotahuman.top"  # 生产环境
-API_KEY = "your-api-key-here"  # 替换为实际的API密钥
+# BASE_URL = "http://localhost:5000"  # 本地测试
+BASE_URL = "http://noimnotahuman.top"  # 生产环境
+API_KEY = "cbf2941a5d96356fe800ebd3bd57822657860b484a334ebf69e7563477c32101"  # 替换为实际的API密钥
+
+# 禁用SSL警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def create_session():
+    """创建配置好的requests会话"""
+    session = requests.Session()
+    
+    # 配置重试策略
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+    
+    # 配置HTTP适配器
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    
+    # 设置超时和SSL配置
+    session.verify = False  # 跳过SSL证书验证
+    session.timeout = 30
+    
+    # 设置User-Agent
+    session.headers.update({
+        'User-Agent': 'FreePics-API-Tester/1.0',
+        'X-API-Key': API_KEY
+    })
+    
+    return session
 
 def test_health():
     """测试健康检查接口"""
     print("🔍 测试健康检查接口...")
     try:
-        response = requests.get(f"{BASE_URL}/health")
+        session = create_session()
+        response = session.get(f"{BASE_URL}/health")
         print(f"状态码: {response.status_code}")
         print(f"响应: {response.json()}")
         return response.status_code == 200
@@ -27,17 +62,47 @@ def test_health():
         print(f"❌ 健康检查失败: {e}")
         return False
 
+def test_server_info():
+    """测试服务器信息和镜像版本"""
+    print("\n🔍 检查服务器信息...")
+    try:
+        session = create_session()
+        
+        # 检查健康状态中的时间戳，判断服务是否重启过
+        response = session.get(f"{BASE_URL}/health")
+        if response.status_code == 200:
+            health_data = response.json()
+            print(f"服务器时间戳: {health_data.get('timestamp')}")
+            print(f"服务版本: {health_data.get('version')}")
+        
+        # 尝试获取更多调试信息
+        headers = session.headers.copy()
+        headers['X-Debug'] = 'true'
+        
+        response = session.get(f"{BASE_URL}/health", headers=headers)
+        print(f"响应头: {dict(response.headers)}")
+        
+        return True
+    except Exception as e:
+        print(f"❌ 服务器信息检查失败: {e}")
+        return False
+
 def test_config():
     """测试配置接口"""
     print("\n🔍 测试配置接口...")
     try:
-        headers = {"X-API-Key": API_KEY}
-        response = requests.get(f"{BASE_URL}/config", headers=headers)
+        session = create_session()
+        response = session.get(f"{BASE_URL}/config")
         print(f"状态码: {response.status_code}")
-        print(f"响应: {json.dumps(response.json(), indent=2, ensure_ascii=False)}")
-        return response.status_code == 200
+        if response.status_code == 200:
+            config = response.json()
+            print(f"配置信息: {json.dumps(config, indent=2, ensure_ascii=False)}")
+            return True
+        else:
+            print(f"配置获取失败: {response.text}")
+            return False
     except Exception as e:
-        print(f"❌ 配置获取失败: {e}")
+        print(f"❌ 配置测试失败: {e}")
         return False
 
 def test_upload(image_path):
@@ -49,13 +114,19 @@ def test_upload(image_path):
         return None
     
     try:
-        headers = {"X-API-Key": API_KEY}
+        session = create_session()
+        
+        # 添加详细的上传调试信息
+        file_size = os.path.getsize(image_path)
+        print(f"📤 上传调试信息:")
+        print(f"   - 文件路径: {image_path}")
+        print(f"   - 文件大小: {file_size} bytes")
+        
         files = {"file": open(image_path, "rb")}
         data = {"optimize": "true"}
         
-        response = requests.post(
+        response = session.post(
             f"{BASE_URL}/upload",
-            headers=headers,
             files=files,
             data=data
         )
@@ -63,8 +134,14 @@ def test_upload(image_path):
         files["file"].close()
         
         print(f"状态码: {response.status_code}")
-        result = response.json()
-        print(f"响应: {json.dumps(result, indent=2, ensure_ascii=False)}")
+        
+        # 尝试解析响应
+        try:
+            result = response.json()
+            print(f"响应: {json.dumps(result, indent=2, ensure_ascii=False)}")
+        except:
+            print(f"响应文本: {response.text}")
+            return None
         
         if response.status_code == 200 and result.get("success"):
             return result.get("filename")
@@ -157,7 +234,7 @@ def main():
     """主测试函数"""
     print("🚀 FreePics API 测试开始")
     print(f"测试服务器: {BASE_URL}")
-    print(f"API密钥: {API_KEY[:10]}..." if len(API_KEY) > 10 else API_KEY)
+    print(f"API密钥: {API_KEY[:10]}...")
     print("=" * 50)
     
     # 测试健康检查
@@ -165,7 +242,10 @@ def main():
         print("❌ 服务不可用，请检查服务是否正常运行")
         return
     
-    # 测试配置接口
+    # 检查服务器信息
+    test_server_info()
+    
+    # 测试配置
     test_config()
     
     # 创建测试图片
@@ -210,7 +290,7 @@ if __name__ == "__main__":
     # 检查命令行参数
     if len(sys.argv) > 1:
         if sys.argv[1] == "--prod":
-            BASE_URL = "https://noimnotahuman.top"
+            BASE_URL = "http://noimnotahuman.top"
             print("🌐 使用生产环境进行测试")
         elif sys.argv[1] == "--help":
             print("用法:")
