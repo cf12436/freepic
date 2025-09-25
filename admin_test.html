@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreePics 管理面板测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+        .error { background: #ffe6e6; color: #d00; }
+        .success { background: #e6ffe6; color: #060; }
+        input, button { margin: 5px; padding: 8px; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>FreePics API 连接测试</h1>
+    
+    <div class="test-section">
+        <h3>1. 基本配置</h3>
+        <p>API地址: <span id="apiUrl">http://noimnotahuman.top</span></p>
+        <input type="password" id="apiKey" placeholder="输入API密钥" style="width: 300px;">
+        <button onclick="testConnection()">测试连接</button>
+    </div>
+
+    <div class="test-section">
+        <h3>2. 健康检查测试</h3>
+        <button onclick="testHealth()">测试 /health</button>
+        <div id="healthResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. 配置接口测试</h3>
+        <button onclick="testConfig()">测试 /config</button>
+        <div id="configResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. 文件列表测试</h3>
+        <button onclick="testList()">测试 /list</button>
+        <div id="listResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>5. 网络诊断</h3>
+        <button onclick="testCORS()">测试CORS</button>
+        <button onclick="testDNS()">测试DNS解析</button>
+        <div id="networkResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://noimnotahuman.top';
+
+        function log(message, type = 'info') {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = content;
+            element.className = `result ${isError ? 'error' : 'success'}`;
+        }
+
+        function getApiKey() {
+            return document.getElementById('apiKey').value.trim();
+        }
+
+        async function testConnection() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                alert('请先输入API密钥');
+                return;
+            }
+            
+            log('开始连接测试');
+            await testHealth();
+            await testConfig();
+            await testList();
+        }
+
+        async function testHealth() {
+            try {
+                log('测试健康检查接口');
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                log(`健康检查响应状态: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log('健康检查数据:', JSON.stringify(data));
+                
+                showResult('healthResult', `
+                    <strong>✅ 健康检查成功</strong><br>
+                    状态: ${data.status}<br>
+                    版本: ${data.version}<br>
+                    时间: ${data.timestamp}
+                `);
+                
+            } catch (error) {
+                log(`健康检查失败: ${error.message}`, 'error');
+                showResult('healthResult', `
+                    <strong>❌ 健康检查失败</strong><br>
+                    错误: ${error.message}
+                `, true);
+            }
+        }
+
+        async function testConfig() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showResult('configResult', '❌ 请先输入API密钥', true);
+                return;
+            }
+
+            try {
+                log('测试配置接口');
+                const response = await fetch(`${API_BASE}/config`, {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                log(`配置接口响应状态: ${response.status}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                log('配置数据:', JSON.stringify(data));
+                
+                showResult('configResult', `
+                    <strong>✅ 配置获取成功</strong><br>
+                    支持格式: ${data.allowed_extensions?.join(', ')}<br>
+                    最大文件大小: ${data.max_file_size_mb}MB<br>
+                    需要API密钥: ${data.has_api_keys ? '是' : '否'}
+                `);
+                
+            } catch (error) {
+                log(`配置接口失败: ${error.message}`, 'error');
+                showResult('configResult', `
+                    <strong>❌ 配置获取失败</strong><br>
+                    错误: ${error.message}
+                `, true);
+            }
+        }
+
+        async function testList() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showResult('listResult', '❌ 请先输入API密钥', true);
+                return;
+            }
+
+            try {
+                log('测试文件列表接口');
+                const response = await fetch(`${API_BASE}/list`, {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                log(`文件列表响应状态: ${response.status}`);
+                log(`响应头:`, Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    log(`错误响应内容: ${errorText}`, 'error');
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                log('文件列表数据:', JSON.stringify(data));
+                
+                showResult('listResult', `
+                    <strong>✅ 文件列表获取成功</strong><br>
+                    文件总数: ${data.total || 0}<br>
+                    文件列表: ${data.files?.length || 0} 个文件<br>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `);
+                
+            } catch (error) {
+                log(`文件列表接口失败: ${error.message}`, 'error');
+                showResult('listResult', `
+                    <strong>❌ 文件列表获取失败</strong><br>
+                    错误: ${error.message}<br>
+                    <small>请检查API密钥是否正确，或查看浏览器控制台获取详细错误信息</small>
+                `, true);
+            }
+        }
+
+        async function testCORS() {
+            try {
+                log('测试CORS策略');
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'OPTIONS'
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+                
+                log('CORS头信息:', JSON.stringify(corsHeaders));
+                
+                showResult('networkResult', `
+                    <strong>CORS 测试结果</strong><br>
+                    Allow-Origin: ${corsHeaders['Access-Control-Allow-Origin'] || '未设置'}<br>
+                    Allow-Methods: ${corsHeaders['Access-Control-Allow-Methods'] || '未设置'}<br>
+                    Allow-Headers: ${corsHeaders['Access-Control-Allow-Headers'] || '未设置'}
+                `);
+                
+            } catch (error) {
+                log(`CORS测试失败: ${error.message}`, 'error');
+                showResult('networkResult', `CORS测试失败: ${error.message}`, true);
+            }
+        }
+
+        async function testDNS() {
+            try {
+                log('测试DNS解析');
+                const startTime = Date.now();
+                const response = await fetch(`${API_BASE}/health`);
+                const endTime = Date.now();
+                const responseTime = endTime - startTime;
+                
+                showResult('networkResult', `
+                    <strong>网络连接测试</strong><br>
+                    响应时间: ${responseTime}ms<br>
+                    状态: ${response.status}<br>
+                    服务器: ${response.headers.get('Server') || '未知'}
+                `);
+                
+            } catch (error) {
+                log(`网络测试失败: ${error.message}`, 'error');
+                showResult('networkResult', `网络连接失败: ${error.message}`, true);
+            }
+        }
+
+        // 页面加载时自动测试健康检查
+        window.addEventListener('load', function() {
+            log('页面加载完成，开始自动测试');
+            testHealth();
+        });
+    </script>
+</body>
+</html>

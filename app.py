@@ -58,7 +58,10 @@ def load_config():
 config = load_config()
 
 # 配置CORS
-CORS(app, origins=config.get('allowed_origins', ['*']))
+CORS(app, 
+     origins=config.get('allowed_origins', ['*']),
+     methods=['GET', 'POST', 'DELETE', 'OPTIONS'],
+     allow_headers=['Content-Type', 'X-API-Key'])
 
 def allowed_file(filename):
     """检查文件扩展名是否允许"""
