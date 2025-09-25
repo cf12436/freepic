@@ -230,6 +230,76 @@ curl -X DELETE http://noimnotahuman.top/delete/20250924_104702_5adc6a68-c4cb-49f
 
 ---
 
+### 7. 批量删除所有图片
+
+一次性删除服务器上的所有图片文件。
+
+**请求**
+```
+DELETE /delete-all
+X-API-Key: your-api-key-here
+```
+
+**请求示例 (curl)**
+```bash
+curl -X DELETE http://noimnotahuman.top/delete-all \
+  -H "X-API-Key: your-api-key-here"
+```
+
+**响应**
+```json
+{
+  "success": true,
+  "message": "批量删除完成: 成功删除 5 个文件",
+  "deleted_count": 5,
+  "failed_count": 0,
+  "deleted_files": [
+    "20250924_104702_5adc6a68-c4cb-49f3-823f-5ac22b55afae.jpg",
+    "20250924_105030_b1e2f3a4-d5c6-47e8-9f0a-1b2c3d4e5f6g.png",
+    "20250924_105145_c2f3g4h5-i6j7-48k9-al1m-2n3o4p5q6r7s.gif"
+  ],
+  "delete_time": "2025-09-25T08:15:30.123456"
+}
+```
+
+**错误响应示例（部分文件删除失败）**
+```json
+{
+  "success": true,
+  "message": "批量删除完成: 成功删除 3 个文件，2 个文件删除失败",
+  "deleted_count": 3,
+  "failed_count": 2,
+  "deleted_files": [
+    "file1.jpg",
+    "file2.png",
+    "file3.gif"
+  ],
+  "failed_files": [
+    {
+      "filename": "file4.jpg",
+      "error": "Permission denied"
+    },
+    {
+      "filename": "file5.png", 
+      "error": "File is locked"
+    }
+  ],
+  "delete_time": "2025-09-25T08:15:30.123456"
+}
+```
+
+**状态码**
+- `200` - 批量删除完成（包括部分失败的情况）
+- `401` - 需要API密钥
+- `500` - 批量删除失败
+
+**注意事项**
+- 此操作不可逆，请谨慎使用
+- 如果上传目录不存在，会返回成功状态
+- 即使部分文件删除失败，也会返回200状态码，需要检查响应中的详细信息
+
+---
+
 ## 错误处理
 
 所有错误响应都采用统一格式：
@@ -280,6 +350,18 @@ async function deleteImage(filename, apiKey) {
   
   return await response.json();
 }
+
+// 批量删除所有图片
+async function deleteAllImages(apiKey) {
+  const response = await fetch('http://noimnotahuman.top/delete-all', {
+    method: 'DELETE',
+    headers: {
+      'X-API-Key': apiKey
+    }
+  });
+  
+  return await response.json();
+}
 ```
 
 ### Python (requests)
@@ -313,11 +395,20 @@ class FreePicsClient:
         """删除图片"""
         response = self.session.delete(f"{self.base_url}/delete/{filename}")
         return response.json()
+    
+    def delete_all_images(self):
+        """批量删除所有图片"""
+        response = self.session.delete(f"{self.base_url}/delete-all")
+        return response.json()
 
 # 使用示例
 client = FreePicsClient(api_key="your-api-key-here")
 result = client.upload_image("image.jpg")
 print(f"上传成功: {result['url']}")
+
+# 批量删除示例
+delete_result = client.delete_all_images()
+print(f"删除了 {delete_result['deleted_count']} 个文件")
 ```
 
 ## 注意事项

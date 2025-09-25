@@ -270,6 +270,64 @@ def list_files():
         logger.error(f"文件列表获取失败: {e}")
         return jsonify({'error': '获取文件列表失败'}), 500
 
+@app.route('/delete-all', methods=['DELETE'])
+def delete_all_files():
+    """批量删除所有图片接口"""
+    try:
+        # 验证API密钥
+        if not verify_api_key():
+            return jsonify({'error': '无效的API密钥'}), 401
+        
+        deleted_files = []
+        failed_files = []
+        
+        # 获取所有文件
+        if not os.path.exists(UPLOAD_FOLDER):
+            return jsonify({
+                'success': True,
+                'message': '上传目录不存在，无文件需要删除',
+                'deleted_count': 0,
+                'failed_count': 0,
+                'delete_time': datetime.now().isoformat()
+            }), 200
+        
+        # 遍历并删除所有文件
+        for filename in os.listdir(UPLOAD_FOLDER):
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            if os.path.isfile(file_path):
+                try:
+                    os.remove(file_path)
+                    deleted_files.append(filename)
+                    logger.info(f"文件删除成功: {filename}")
+                except Exception as e:
+                    failed_files.append({'filename': filename, 'error': str(e)})
+                    logger.error(f"文件删除失败: {filename}, 错误: {e}")
+        
+        total_deleted = len(deleted_files)
+        total_failed = len(failed_files)
+        
+        logger.info(f"批量删除完成: 成功 {total_deleted} 个，失败 {total_failed} 个")
+        
+        response_data = {
+            'success': True,
+            'message': f'批量删除完成: 成功删除 {total_deleted} 个文件',
+            'deleted_count': total_deleted,
+            'failed_count': total_failed,
+            'deleted_files': deleted_files,
+            'delete_time': datetime.now().isoformat()
+        }
+        
+        # 如果有失败的文件，添加失败信息
+        if failed_files:
+            response_data['failed_files'] = failed_files
+            response_data['message'] += f'，{total_failed} 个文件删除失败'
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        logger.error(f"批量删除失败: {e}", exc_info=True)
+        return jsonify({'error': f'批量删除失败: {str(e)}'}), 500
+
 @app.route('/config', methods=['GET'])
 def get_config():
     """获取配置信息（不包含敏感信息）"""
